@@ -116,7 +116,8 @@ func processCommand() int {
 			}
 
 		case "sign":
-			signedKey, err := vaultClient.SignKey(sshClient.User)
+			signedKey, err := vaultClient.SignKey(sshClient.User + "@" + sshClient.Hostname)
+
 			if err != nil {
 				log.Fatal("failed to get signed key: ", err)
 			}
@@ -164,10 +165,11 @@ func setupExitHandler(fn string) {
 	}()
 }
 
-func defaultRoleToUser(vaultClient *signer.Client, sshClient *openssh.Client) bool {
-	// if role hasn't been set already, default to resolved SSH username
+func defaultRole(vaultClient *signer.Client, sshClient *openssh.Client) bool {
+	// if role hasn't been set already, default to resolved SSH username@host combination
+	// this is patched in our fork, upstream defaults to the user
 	if vaultClient.Options.Role == "" {
-		vaultClient.Options.Role = sshClient.User
+		vaultClient.Options.Role = sshClient.User + "@" + sshClient.Hostname
 		return true
 	}
 	return false
