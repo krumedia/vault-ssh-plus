@@ -74,9 +74,9 @@ func processCommand() int {
 		log.Fatal("failed to parse ssh configuration: ", err)
 	}
 
-	roleDefaulted := defaultRoleToUser(&vaultClient, &sshClient)
+	roleDefaulted := defaultRole(&vaultClient, &sshClient)
 	if roleDefaulted {
-		log.Debugf("defaulted vault role to ssh username: %s", sshClient.User)
+		log.Debugf("defaulted vault role to ssh username host combination: %s", sshClient.User+"@"+sshClient.Hostname)
 	}
 
 	userOverridden := overrideUser(&vaultClient, &sshClient)
