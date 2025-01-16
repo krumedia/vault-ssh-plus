@@ -3,6 +3,7 @@ package signer
 import (
 	"fmt"
 	"io/ioutil"
+	"os"
 	"os/exec"
 	"os/user"
 	"path/filepath"
@@ -47,6 +48,46 @@ type Extensions struct {
 	X11Forwarding   bool `long:"x11-forwarding" env:"VAULT_SSH_X11_FORWARDING" description:"Force permit-X11-forwarding extension"`
 }
 
+func Init(client *Client, options Options) (err error) {
+	if strings.HasPrefix(options.PublicKey, "~/") {
+		currentUser, err := user.Current()
+		if err != nil {
+			return errors.Wrap(err, "getting current user")
+		}
+
+		options.PublicKey = filepath.Join(currentUser.HomeDir, options.PublicKey[2:])
+	}
+
+	var publicKey []byte
+	if options.PublicKey != "" {
+		options.Mode = "sign"
+		log.Debug("public key option set, reading file")
+		publicKey, err = os.ReadFile(options.PublicKey)
+		if err != nil {
+			return errors.Wrap(err, "reading public key file")
+		}
+	} else {
+		log.Debug("public key option NOT set, reading agent")
+		publicKey, err = agent.GetBestPublicKey(options.Type)
+		if err != nil {
+			return errors.Wrap(err, "finding agent key")
+		}
+	}
+
+	if err := client.SetPublicKey(publicKey); err != nil {
+		return errors.Wrap(err, "setting public key")
+	}
+
+	client.API, err = GetVaultClient()
+	if err != nil {
+		return errors.Wrap(err, "initializing Vault client")
+	}
+
+	client.Options = options
+
+	return nil
+}
+
 func ParseArgs(client *Client, args []string) (unparsedArgs []string, err error) {
 	var options Options
 
@@ -67,7 +108,7 @@ func ParseArgs(client *Client, args []string) (unparsedArgs []string, err error)
 
 	if options.Mode == "sign" {
 		if strings.HasPrefix(options.PublicKey, "~/") {
-			currentUser, _ := user.Current()
+			currentUser, err := user.Current()
 			if err != nil {
 				return nil, errors.Wrap(err, "getting current user")
 			}
@@ -165,6 +206,23 @@ func (c *Client) GetRoleData() map[string]interface{} {
 	return secret.Data
 }
 
+func (c *Client) GetAllowedTargets() []string {
+	secret, err := c.API.Logical().Read("auth/token/lookup-self")
+	if err != nil || secret == nil {
+		return nil
+	}
+
+	resp := secret.Data
+	if resp["policies"] == nil {
+		return nil
+	}
+	var policies []string
+	for _, policy := range resp["policies"].([]interface{}) {
+		policies = append(policies, policy.(string))
+	}
+	return policies
+}
+
 func (c *Client) GetAllowedUser() string {
 	roleData := c.GetRoleData()
 	if roleData == nil {
@@ -221,7 +279,7 @@ func (c *Client) GenerateSignedKeypair(principal string) (privateKey string, sig
 	request["valid_principals"] = principal
 	request["ttl"] = c.Options.TTL
 
-	if !c.Options.Extensions.Default {
+	if true { //!c.Options.Extensions.Default {
 		request["extensions"] = c.RequiredExtensions()
 	}
 
