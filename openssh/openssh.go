@@ -89,6 +89,60 @@ type Extensions struct {
 	X11Forwarding   bool
 }
 
+func (c *Client) Init(target string) (err error) {
+	cmdArgs := append([]string{"-G"}, target)
+	cmd := exec.Command(clientBinary, cmdArgs...)
+
+	output, err := cmd.Output()
+	if err != nil {
+		return errors.Wrap(err, "getting ssh_config")
+	}
+
+	scanner := bufio.NewScanner(bytes.NewReader(output))
+
+	for scanner.Scan() {
+		split := strings.SplitN(scanner.Text(), " ", 2)
+		key := strings.ToLower(split[0])
+		value := ""
+		if len(split) == 2 {
+			value = split[1]
+		}
+
+		switch key {
+		case "user":
+			c.User = value
+		case "hostname":
+			c.Hostname = value
+		case "dynamicforward":
+			c.Extensions.PortForwarding = true
+		case "forwardagent":
+			if value == "yes" {
+				c.Extensions.AgentForwarding = true
+			}
+		case "forwardx11":
+			if value == "yes" {
+				c.Extensions.X11Forwarding = true
+			}
+		case "forwardx11trusted":
+			if value == "yes" {
+				c.Extensions.X11Forwarding = true
+			}
+		case "identityagent":
+			c.ForceIdentityAgent = true
+		case "localforward":
+			c.Extensions.PortForwarding = true
+		case "remoteforward":
+			c.Extensions.PortForwarding = true
+		case "requesttty":
+			if value == "false" {
+				c.Extensions.NoPTY = true
+			}
+		}
+	}
+
+	return nil
+}
+
 // ParseConfig uses `ssh -G` to obtain a fully processed ssh_config(5), parse the result and update configuration accordingly
 func (c *Client) ParseConfig() error {
 	cmdArgs := append([]string{"-G"}, c.Args...)
@@ -184,7 +238,9 @@ func (c *Client) WriteCertificateFile() (string, error) {
 }
 
 // Connect establishes the ssh client connection
-func (c *Client) Connect(connectionSharing bool) error {
+func (c *Client) Connect(target string, sshCommand []string, connectionSharing bool) error {
+	fullArgs := append(c.Args, target)
+	fullArgs = append(fullArgs, sshCommand...)
 	// save some memory if we're connection sharing
 	if connectionSharing {
 		sshPath, err := exec.LookPath(clientBinary)
@@ -192,10 +248,10 @@ func (c *Client) Connect(connectionSharing bool) error {
 			return err
 		}
 
-		return syscall.Exec(sshPath, append([]string{clientBinary}, c.Args...), os.Environ())
+		return syscall.Exec(sshPath, append([]string{clientBinary}, fullArgs...), os.Environ())
 	}
 
-	cmd := exec.Command(clientBinary, c.Args...)
+	cmd := exec.Command(clientBinary, fullArgs...)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
 
 	return cmd.Run()
