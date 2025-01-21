@@ -70,6 +70,10 @@ func init() {
 		filepath.Join(currentUser.HomeDir, ".ssh/vssh_handler.pub"),
 		"Path to preferred public key for 'sign' mode",
 	)
+	rootCmd.PersistentFlags().StringVarP(&options.Signer.PrivateKey, "private-key", "i",
+		filepath.Join(currentUser.HomeDir, ".ssh/vssh_handler"),
+		"Path to preferred private key for 'sign' mode",
+	)
 }
 
 func getMatchingTargets(toComplete string) []string {
@@ -173,7 +177,12 @@ func processCommand(args []string) int {
 			setupExitHandler(certificateFile)
 			defer os.Remove(certificateFile)
 
-			sshClient.PrependArgs([]string{"-o", fmt.Sprintf("CertificateFile=%s", certificateFile)})
+			sshClient.PrependArgs([]string{
+				"-o",
+				fmt.Sprintf("CertificateFile=%s", certificateFile),
+				"-i",
+				options.Signer.PrivateKey,
+			})
 		}
 	}
 
