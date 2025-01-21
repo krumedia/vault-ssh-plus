@@ -35,6 +35,7 @@ type Options struct {
 	Role       string     `long:"role" env:"VAULT_SSH_ROLE" description:"Vault SSH role (default: <ssh-username>)"`
 	TTL        uint       `long:"ttl" default:"300" env:"VAULT_SSH_TTL" description:"Vault SSH certificate TTL"`
 	PublicKey  string     `short:"P" long:"public-key" env:"VAULT_SSH_PUBLIC_KEY" description:"Path to preferred public key for 'sign' mode"`
+	PrivateKey string     `short:"i" long:"private-key" env:"VAULT_SSH_PRIVATE_KEY" description:"Path to preferred private key for 'sign' mode"`
 	Extensions Extensions `group:"Certificate Extensions"`
 }
 
