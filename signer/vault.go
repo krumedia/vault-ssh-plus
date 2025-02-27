@@ -280,7 +280,7 @@ func (c *Client) GenerateSignedKeypair(principal string) (privateKey string, sig
 	request["valid_principals"] = principal
 	request["ttl"] = c.Options.TTL
 
-	if true { //!c.Options.Extensions.Default {
+	if !c.Options.Extensions.Default {
 		request["extensions"] = c.RequiredExtensions()
 	}
 
