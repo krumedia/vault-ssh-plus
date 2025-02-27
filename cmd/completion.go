@@ -39,6 +39,9 @@ local function starts_with(str, start)
 end
 
 local function get_targets(prefix)
+	if prefix == nil then
+		prefix = ""
+	end
 	local handle = io.popen("vssh __complete " .. prefix .. " 2> nul")
 	local result = handle:read("*a")
 	local rc = {handle:close()}
