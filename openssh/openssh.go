@@ -257,6 +257,16 @@ func (c *Client) Connect(target string, sshCommand []string, connectionSharing b
 	return cmd.Run()
 }
 
+// Connect establishes the ssh client connection
+func (c *Client) RawConnect(connLine []string) error {
+	fullLine := append(c.Args, connLine...)
+	cmd := exec.Command(clientBinary, fullLine...)
+
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
+
+	return cmd.Run()
+}
+
 func ParseSignedKey(certificateString string) (*ssh.Certificate, error) {
 	publicKey, _, _, _, err := ssh.ParseAuthorizedKey([]byte(certificateString))
 	if err != nil {

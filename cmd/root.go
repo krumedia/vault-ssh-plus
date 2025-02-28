@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"github.com/isometry/vault-ssh-plus/agent"
 	"github.com/isometry/vault-ssh-plus/openssh"
@@ -29,6 +30,9 @@ var rootCmd = &cobra.Command{
 		}
 		return getMatchingTargets(toComplete), cobra.ShellCompDirectiveNoFileComp
 	},
+	FParseErrWhitelist: cobra.FParseErrWhitelist{
+		UnknownFlags: true,
+	},
 	Run: func(cmd *cobra.Command, args []string) {
 		processCommand(args)
 	},
@@ -42,10 +46,12 @@ func Execute() {
 }
 
 var (
-	version = "dev"
-	commit  = "none"
-	date    = "unknown"
-	options struct {
+	rsyncMode = false
+	loginName = "root"
+	version   = "dev"
+	commit    = "none"
+	date      = "unknown"
+	options   struct {
 		Signer  signer.Options
 		OpenSSH openssh.Options `group:"OpenSSH ssh(1) Options" hidden:"yes"`
 		Version func()          `long:"version" description:"Show version"`
@@ -60,6 +66,9 @@ func showVersion() {
 func init() {
 	rootCmd.AddCommand(completionCmd)
 	currentUser, _ := user.Current()
+
+	rootCmd.PersistentFlags().BoolVar(&rsyncMode, "rsync", false, "Rsync mode")
+	rootCmd.PersistentFlags().StringVarP(&loginName, "login-name", "l", "", "Login name for 'issue' mode")
 	rootCmd.PersistentFlags().StringVar(&options.Signer.Mode, "mode", "issue", "Mode")
 	rootCmd.PersistentFlags().StringVar(&options.Signer.Type, "type", "ed25519", "Key type or preference for 'sign' mode")
 	rootCmd.PersistentFlags().UintVar(&options.Signer.Bits, "bits", 256, "Key bits for 'issue' mode")
@@ -114,6 +123,11 @@ func processCommand(args []string) int {
 
 	if err := sshClient.Init(sshTarget); err != nil {
 		log.Fatal("failed to parse ssh configuration: ", err)
+	}
+
+	if rsyncMode {
+		sshClient.User = os.Args[3]
+		// Don't ask... format is: <binary-name> --rsync -l <login-name> <target> <rsync-flags>, so login-name is at index 3
 	}
 
 	roleDefaulted := defaultRole(&vaultClient, &sshClient)
@@ -174,14 +188,14 @@ func processCommand(args []string) int {
 			}
 
 			// ensure the signedKeyFile is deleted if we're killed
-			setupExitHandler(certificateFile)
-			defer os.Remove(certificateFile)
+			//setupExitHandler(certificateFile)
+			//defer os.Remove(certificateFile)
 
 			sshClient.PrependArgs([]string{
 				"-o",
 				fmt.Sprintf("CertificateFile=%s", certificateFile),
 				"-i",
-				options.Signer.PrivateKey,
+				options.Signer.PublicKey,
 			})
 		}
 	}
@@ -191,15 +205,17 @@ func processCommand(args []string) int {
 		"reuse-control-connection": controlConnection,
 	}).Debug()
 
-	if err := sshClient.Connect(sshTarget, sshCommand, controlConnection); err != nil {
-		if exitError, ok := err.(*exec.ExitError); ok {
-			return exitError.ExitCode()
-		} else {
-			return 999
-		}
+	if rsyncMode {
+		err = sshClient.RawConnect(os.Args[2:]) // Pass raw command line minus "<binary-name> --rsync"
+	} else {
+		err = sshClient.Connect(sshTarget, sshCommand, controlConnection)
 	}
 
-	return 0
+	var exitError *exec.ExitError
+	if errors.As(err, &exitError) {
+		return exitError.ExitCode()
+	}
+	return 999
 }
 
 func setupExitHandler(fn string) {
