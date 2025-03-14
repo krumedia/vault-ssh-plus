@@ -188,8 +188,8 @@ func processCommand(args []string) int {
 			}
 
 			// ensure the signedKeyFile is deleted if we're killed
-			//setupExitHandler(certificateFile)
-			//defer os.Remove(certificateFile)
+			setupExitHandler(certificateFile)
+			defer os.Remove(certificateFile)
 
 			sshClient.PrependArgs([]string{
 				"-o",
