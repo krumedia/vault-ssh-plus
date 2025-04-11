@@ -9,7 +9,7 @@ builds:
     flags:
       - -trimpath
     ldflags:
-      - "-s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}}"
+      - "-s -w -X cmd.version={{.Version}} -X cmd.commit={{.Commit}}"
     goos:
       - windows
       - linux
@@ -17,10 +17,10 @@ builds:
       - amd64
     binary: vssh
 archives:
-  - format: zip
+  - formats: ['zip']
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
 snapshot:
-  name_template: "{{ .Tag }}-next"
+  version_template: "{{ .Tag }}-next"
 checksum:
   name_template: "{{ .ProjectName }}_{{ .Version }}_SHA256SUMS"
   algorithm: sha256

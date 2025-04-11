@@ -20,10 +20,11 @@ import (
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "vssh",
-	Short: "",
-	Long:  "",
-	Args:  cobra.MinimumNArgs(1),
+	Use:     "vssh",
+	Short:   "",
+	Long:    "",
+	Version: fmt.Sprintf("%s (%s)", version, commit),
+	Args:    cobra.MinimumNArgs(1),
 	ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		if len(args) != 0 {
 			return nil, cobra.ShellCompDirectiveNoFileComp
@@ -34,7 +35,10 @@ var rootCmd = &cobra.Command{
 		UnknownFlags: true,
 	},
 	Run: func(cmd *cobra.Command, args []string) {
-		processCommand(args)
+		code := processCommand(cmd, args)
+		if code != 0 {
+			os.Exit(code)
+		}
 	},
 }
 
@@ -49,19 +53,12 @@ var (
 	rsyncMode = false
 	loginName = "root"
 	version   = "dev"
-	commit    = "none"
-	date      = "unknown"
+	commit    = "unknown"
 	options   struct {
 		Signer  signer.Options
 		OpenSSH openssh.Options `group:"OpenSSH ssh(1) Options" hidden:"yes"`
-		Version func()          `long:"version" description:"Show version"`
 	}
 )
-
-func showVersion() {
-	fmt.Printf("vault-ssh-plus v%s (%s), %s\n", version, commit, date)
-	os.Exit(0)
-}
 
 func init() {
 	rootCmd.AddCommand(completionCmd)
@@ -106,16 +103,23 @@ func getMatchingTargets(toComplete string) []string {
 	return targets
 }
 
-func processCommand(args []string) int {
+func processCommand(cmd *cobra.Command, args []string) int {
 	var (
 		vaultClient signer.Client
 		sshClient   openssh.Client
 		err         error
 	)
 
+	if len(args) == 0 {
+		fmt.Printf("Error: requires at least 1 arg(s), only received 0\n")
+		_ = cmd.Help()
+		return 1
+	}
+
 	err = signer.Init(&vaultClient, options.Signer)
 	if err != nil {
 		log.Fatal(err)
+		return 1
 	}
 
 	sshTarget := args[0]
